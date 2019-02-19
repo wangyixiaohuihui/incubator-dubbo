@@ -18,6 +18,7 @@ package org.apache.dubbo.common.extension;
 
 import org.apache.dubbo.common.Constants;
 import org.apache.dubbo.common.URL;
+import org.apache.dubbo.common.compiler.Compiler;
 import org.apache.dubbo.common.extension.support.ActivateComparator;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
@@ -97,6 +98,7 @@ public class ExtensionLoader<T> {
 
     private ExtensionLoader(Class<?> type) {
         this.type = type;
+        // objectFactory 本身也是SPI 接口
         objectFactory = (type == ExtensionFactory.class ? null : ExtensionLoader.getExtensionLoader(ExtensionFactory.class).getAdaptiveExtension());
     }
 
@@ -598,7 +600,6 @@ public class ExtensionLoader<T> {
         }
         return classes;
     }
-
     // synchronized in getExtensionClasses
     private Map<String, Class<?>> loadExtensionClasses() {
         final SPI defaultAnnotation = type.getAnnotation(SPI.class);
@@ -610,12 +611,22 @@ public class ExtensionLoader<T> {
                     throw new IllegalStateException("More than 1 default extension name on extension " + type.getName()
                             + ": " + Arrays.toString(names));
                 }
+
+                /**
+                 * 如果注解中有value，说明有默认的实现，那么将value放到cachedDefaultName中
+                 */
                 if (names.length == 1) {
                     cachedDefaultName = names[0];
                 }
             }
         }
 
+        /**
+         * 从下面的地址中加在这个类型的数据的extensionClasses中，地址包括
+         * META-INF/dubbo/internal/
+         * META-INF/dubbo/
+         * META-INF/services/
+         */
         Map<String, Class<?>> extensionClasses = new HashMap<String, Class<?>>();
         loadDirectory(extensionClasses, DUBBO_INTERNAL_DIRECTORY, type.getName());
         loadDirectory(extensionClasses, DUBBO_INTERNAL_DIRECTORY, type.getName().replace("org.apache", "com.alibaba"));
@@ -653,6 +664,9 @@ public class ExtensionLoader<T> {
             BufferedReader reader = new BufferedReader(new InputStreamReader(resourceURL.openStream(), "utf-8"));
             try {
                 String line;
+                /**
+                 * # 之前的内容是我们需要的数据，后面的内容可以认为是注释之类的
+                 */
                 while ((line = reader.readLine()) != null) {
                     final int ci = line.indexOf('#');
                     if (ci >= 0) {
@@ -662,11 +676,17 @@ public class ExtensionLoader<T> {
                     if (line.length() > 0) {
                         try {
                             String name = null;
+                            /**
+                             * 看下=的位置，如果有等号，那么=前面的数据是名称，后面的要实现的类的全路径名称
+                             */
                             int i = line.indexOf('=');
                             if (i > 0) {
                                 name = line.substring(0, i).trim();
                                 line = line.substring(i + 1).trim();
                             }
+                            /**
+                             * 加载解析出来的类的全限定名称  反射的方式获取类
+                             */
                             if (line.length() > 0) {
                                 loadClass(extensionClasses, resourceURL, Class.forName(line, true, classLoader), name);
                             }
@@ -686,11 +706,18 @@ public class ExtensionLoader<T> {
     }
 
     private void loadClass(Map<String, Class<?>> extensionClasses, java.net.URL resourceURL, Class<?> clazz, String name) throws NoSuchMethodException {
+
+        /**
+         * 判断是新加载clazz是否是type的子类，不是报错
+         */
         if (!type.isAssignableFrom(clazz)) {
             throw new IllegalStateException("Error occurred when loading extension class (interface: " +
                     type + ", class line: " + clazz.getName() + "), class "
                     + clazz.getName() + " is not subtype of interface.");
         }
+        /**
+         * 判断这个加载的类上，有没有Adaptive的注解，如果有
+         */
         if (clazz.isAnnotationPresent(Adaptive.class)) {
             if (cachedAdaptiveClass == null) {
                 cachedAdaptiveClass = clazz;
@@ -700,15 +727,30 @@ public class ExtensionLoader<T> {
                         + ", " + clazz.getClass().getName());
             }
         } else if (isWrapperClass(clazz)) {
+
+            /**
+             * 如果这个类没有 Adaptive 注解
+             * 看看这个类，有没有此类型的构造方法，主要是Wrapper类使用，如果有，说明是个wrapper类
+             */
             Set<Class<?>> wrappers = cachedWrapperClasses;
             if (wrappers == null) {
                 cachedWrapperClasses = new ConcurrentHashSet<>();
                 wrappers = cachedWrapperClasses;
             }
+            /**
+             * 将此wrapper放入wrappers容器里面，也就是cachedWrapperClasses里面
+             */
             wrappers.add(clazz);
         } else {
+            /**
+             * 如果不是wapper类型的数据，肯定会抛异常，被捕获，到了这里，说明是个正常的类
+             * 获取构造方法
+             */
             clazz.getConstructor();
             if (StringUtils.isEmpty(name)) {
+                /**
+                 * 如果name没有写的话，就使用默认的规则生成一个
+                 */
                 name = findAnnotationName(clazz);
                 if (name.length() == 0) {
                     throw new IllegalStateException("No such extension name for the class " + clazz.getName() + " in the config " + resourceURL);
@@ -716,8 +758,13 @@ public class ExtensionLoader<T> {
             }
             String[] names = NAME_SEPARATOR.split(name);
             if (names != null && names.length > 0) {
+                /**
+                 * 看下这个类上有没有Activate注解
+                 */
                 Activate activate = clazz.getAnnotation(Activate.class);
                 if (activate != null) {
+
+                    //存在，就往cachedActivates里面添加名称与注解
                     cachedActivates.put(names[0], activate);
                 } else {
                     // support com.alibaba.dubbo.common.extension.Activate
@@ -726,12 +773,14 @@ public class ExtensionLoader<T> {
                         cachedActivates.put(names[0], oldActivate);
                     }
                 }
+                //将此类型的实例与name放入cachedNames
                 for (String n : names) {
                     if (!cachedNames.containsKey(clazz)) {
                         cachedNames.put(clazz, n);
                     }
                     Class<?> c = extensionClasses.get(n);
                     if (c == null) {
+                        //最后往extensionClasses添加名称与class
                         extensionClasses.put(n, clazz);
                     } else if (c != clazz) {
                         throw new IllegalStateException("Duplicate extension " + type.getName() + " name " + n + " on " + c.getName() + " and " + clazz.getName());
@@ -773,20 +822,56 @@ public class ExtensionLoader<T> {
     }
 
     private Class<?> getAdaptiveExtensionClass() {
+        /**
+         * 触发SPI流程的扫描
+         */
         getExtensionClasses();
         if (cachedAdaptiveClass != null) {
             return cachedAdaptiveClass;
         }
+        // 利用动态代理创建一个扩展类
         return cachedAdaptiveClass = createAdaptiveExtensionClass();
     }
 
     private Class<?> createAdaptiveExtensionClass() {
+        /**
+         * 创建代码的字符串形式
+         */
         String code = createAdaptiveExtensionClassCode();
+        /**
+         * 寻找类加载器
+         */
         ClassLoader classLoader = findClassLoader();
-        org.apache.dubbo.common.compiler.Compiler compiler = ExtensionLoader.getExtensionLoader(org.apache.dubbo.common.compiler.Compiler.class).getAdaptiveExtension();
+        /**
+         * 寻找Compiler的适配器扩展类
+         */
+        org.apache.dubbo.common.compiler.Compiler compiler
+                = ExtensionLoader.getExtensionLoader(org.apache.dubbo.common.compiler.Compiler.class).getAdaptiveExtension();
+        /**
+         * 进行编译成Class的实例返回
+         */
         return compiler.compile(code, classLoader);
     }
 
+
+    /**
+     * 创建适配器的扩展类的String
+     * <p>
+     * <p>
+     * 创建这个适配器的扩展类，有几个前提：
+     * 1. 必须有SPI的注解
+     * 2. 被SPI声明的接口中至少一个方法有Adaptive注解。
+     * ProxyFactory
+     * 下面是他的说明：
+     * 当声明在方法上的Adaptive中的value的作用就是，从URL中获取key,value,例如ProxyFactory
+     *
+     * @return
+     * @Adaptive({Constants.PROXY_KEY})==========="proxy" <T> Invoker<T> getInvoker(T proxy, Class<T> type, URL url) throws RpcException;
+     * <p>
+     * 如果URL中是dubbo:xxxx?proxy=jdk,而SPI中的值是javassist,那么就是
+     * <p>
+     * String extName = url.getParameter("proxy", "javassist");  //结果是jdk
+     */
     private String createAdaptiveExtensionClassCode() {
         StringBuilder codeBuilder = new StringBuilder();
         Method[] methods = type.getMethods();
@@ -807,18 +892,35 @@ public class ExtensionLoader<T> {
         codeBuilder.append("\npublic class ").append(type.getSimpleName()).append("$Adaptive").append(" implements ").append(type.getCanonicalName()).append(" {");
 
         for (Method method : methods) {
+
+
             Class<?> rt = method.getReturnType();
+            /**
+             * 参数列表的类型
+             */
             Class<?>[] pts = method.getParameterTypes();
+            /**
+             * 异常列表的类型
+             */
             Class<?>[] ets = method.getExceptionTypes();
 
+            /**
+             * 获得Adaptive的注解
+             */
             Adaptive adaptiveAnnotation = method.getAnnotation(Adaptive.class);
             StringBuilder code = new StringBuilder(512);
+            /**
+             * 如果这个方法没有注解，添加不支持调用此方法的异常
+             */
             if (adaptiveAnnotation == null) {
                 code.append("throw new UnsupportedOperationException(\"The method ")
                         .append(method.toString()).append(" of interface ")
                         .append(type.getName()).append(" is not adaptive method!\");");
             } else {
                 int urlTypeIndex = -1;
+                /**
+                 * 寻找列表中的类型是URL.class，记录他的位置，数据放到urlTypeIndex中
+                 */
                 for (int i = 0; i < pts.length; ++i) {
                     if (pts[i].equals(URL.class)) {
                         urlTypeIndex = i;
@@ -826,6 +928,9 @@ public class ExtensionLoader<T> {
                     }
                 }
                 // found parameter in URL type
+                /**
+                 * 找到了URL类型的参数
+                 * */
                 if (urlTypeIndex != -1) {
                     // Null Point check
                     String s = String.format("\nif (arg%d == null) throw new IllegalArgumentException(\"url == null\");",
@@ -873,14 +978,23 @@ public class ExtensionLoader<T> {
                     code.append(s);
                 }
 
+                /**
+                 * 获取adaptive注解的value
+                 */
                 String[] value = adaptiveAnnotation.value();
                 // value is not set, use the value generated from class name as the key
                 if (value.length == 0) {
+                    /**
+                     * 如果value没有设置，那么将使用类的名称作为key
+                     */
                     String splitName = StringUtils.camelToSplitName(type.getSimpleName(), ".");
                     value = new String[]{splitName};
                 }
 
                 boolean hasInvocation = false;
+                /**
+                 * 如果参数列表中有Invocation的实例
+                 */
                 for (int i = 0; i < pts.length; ++i) {
                     if (("org.apache.dubbo.rpc.Invocation").equals(pts[i].getName())) {
                         // Null Point check
@@ -893,11 +1007,20 @@ public class ExtensionLoader<T> {
                     }
                 }
 
+                /**
+                 * defaultExtName为spi注解中的value
+                 */
                 String defaultExtName = cachedDefaultName;
                 String getNameCode = null;
                 for (int i = value.length - 1; i >= 0; --i) {
                     if (i == value.length - 1) {
+                        /**
+                         * 如果defaultExtName 存在，spi注解中的value存在
+                         */
                         if (null != defaultExtName) {
+                            /**
+                             * value[i]的值不等于"protocol"
+                             */
                             if (!"protocol".equals(value[i])) {
                                 if (hasInvocation) {
                                     getNameCode = String.format("url.getMethodParameter(methodName, \"%s\", \"%s\")", value[i], defaultExtName);

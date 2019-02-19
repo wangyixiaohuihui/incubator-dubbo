@@ -44,7 +44,12 @@ public class Application {
         @Bean
         public RegistryConfig registryConfig() {
             RegistryConfig registryConfig = new RegistryConfig();
-            registryConfig.setAddress("multicast://224.5.6.7:1234");
+//            registryConfig.setGroup("dubbo/live2");
+            registryConfig.setAddress("zookeeper://10.1.100.11:2181");
+            registryConfig.setClient("curator");
+//            registryConfig.setPort(20880);
+            registryConfig.setTimeout(4*1000);
+            registryConfig.setCheck(Boolean.FALSE);
             return registryConfig;
         }
     }
