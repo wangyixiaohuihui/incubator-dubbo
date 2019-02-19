@@ -312,7 +312,7 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
     }
 
     /**
-     * @since 2.6.5
+     * @since 2.6.5 暴露服务
      */
     @Override
     public void export() {
