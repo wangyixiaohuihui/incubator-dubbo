@@ -74,20 +74,30 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
 
     private static final Logger logger = LoggerFactory.getLogger(RegistryDirectory.class);
 
+    // cluster实现类对象
     private static final Cluster cluster = ExtensionLoader.getExtensionLoader(Cluster.class).getAdaptiveExtension();
 
+    // 路由工厂
     private static final RouterFactory routerFactory = ExtensionLoader.getExtensionLoader(RouterFactory.class)
             .getAdaptiveExtension();
 
+    //服务key
     private final String serviceKey; // Initialization at construction time, assertion not null
+    //服务类型
     private final Class<T> serviceType; // Initialization at construction time, assertion not null
+    //消费者URL的配置项 Map
     private final Map<String, String> queryMap; // Initialization at construction time, assertion not null
+    //原始的目录 URL
     private final URL directoryUrl; // Initialization at construction time, assertion not null, and always assign non null value
+    //是否使用多分组
     private final boolean multiGroup;
+    //协议
     private Protocol protocol; // Initialization at the time of injection, the assertion is not null
+    //注册中心
     private Registry registry; // Initialization at the time of injection, the assertion is not null
+    //是否禁止访问
     private volatile boolean forbidden = false;
-
+    //覆盖目录的url
     private volatile URL overrideDirectoryUrl; // Initialization at construction time, assertion not null, and always assign non null value
 
     private volatile URL registeredConsumerUrl;
@@ -101,6 +111,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
     private volatile List<Configurator> configurators; // The initial value is null and the midway may be assigned to null, please use the local variable reference
 
     // Map<url, Invoker> cache service url to invoker mapping.
+    // url与服务提供者 Invoker 集合的映射缓存
     private volatile Map<String, Invoker<T>> urlInvokerMap; // The initial value is null and the midway may be assigned to null, please use the local variable reference
     private volatile List<Invoker<T>> invokers;
 
@@ -196,13 +207,14 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
 
         /**
          * TODO Try to refactor the processing of these three type of urls using Collectors.groupBy()?
+         * 如果是配置规则，则加入配置规则集合
          */
         this.configurators = Configurator.toConfigurators(classifyUrls(categoryUrls, UrlUtils::isConfigurator))
                 .orElse(configurators);
 
         toRouters(classifyUrls(categoryUrls, UrlUtils::isRoute)).ifPresent(this::addRouters);
 
-        // providers
+        // providers // 如果是服务提供者，则加入服务提供者集合
         refreshOverrideAndInvoker(classifyUrls(categoryUrls, UrlUtils::isProvider));
     }
 
@@ -234,13 +246,16 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
             this.forbidden = true; // Forbid to access
             this.invokers = Collections.emptyList();
             routerChain.setInvokers(this.invokers);
+            // 关闭所有的invoker
             destroyAllInvokers(); // Close all invokers
         } else {
+            // 关闭禁止访问
             this.forbidden = false; // Allow to access
             Map<String, Invoker<T>> oldUrlInvokerMap = this.urlInvokerMap; // local reference
             if (invokerUrls == Collections.<URL>emptyList()) {
                 invokerUrls = new ArrayList<>();
             }
+            // 传入的 invokerUrls 为空，说明是路由规则或配置规则发生改变，此时 invokerUrls 是空的，直接使用 cachedInvokerUrls 。
             if (invokerUrls.isEmpty() && this.cachedInvokerUrls != null) {
                 invokerUrls.addAll(this.cachedInvokerUrls);
             } else {
@@ -251,6 +266,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                 return;
             }
             // Translate url list to Invoker map
+            // 将传入的 invokerUrls ，转成新的 urlInvokerMap
             Map<String, Invoker<T>> newUrlInvokerMap = toInvokers(invokerUrls);
 
             /**

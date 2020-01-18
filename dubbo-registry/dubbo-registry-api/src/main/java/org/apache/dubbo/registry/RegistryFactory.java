@@ -38,7 +38,7 @@ public interface RegistryFactory {
      * 4. Support file=registry.cache local disk file cache.<br>
      * 5. Support the timeout=1000 request timeout setting.<br>
      * 6. Support session=60000 session timeout or expiration settings.<br>
-     *
+     *  // 该接口会动态生成一个适配器RegistryFactory$Adaptive
      * @param url Registry address, is not allowed to be empty
      * @return Registry reference, never return empty value
      */

@@ -54,6 +54,7 @@ public interface RegistryService {
     void unregister(URL url);
 
     /**
+     * 订阅服务.
      * Subscribe to eligible registered data and automatically push when the registered data is changed.
      * <p>
      * Subscribing need to support contracts:<br>

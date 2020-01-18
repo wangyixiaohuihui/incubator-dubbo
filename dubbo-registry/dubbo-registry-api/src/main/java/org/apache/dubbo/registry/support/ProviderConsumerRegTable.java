@@ -33,9 +33,19 @@ import java.util.concurrent.ConcurrentMap;
  * @date 2017/11/23
  */
 public class ProviderConsumerRegTable {
+    // 服务提供者Invoker集合，key 服务提供者的URL计算的key，url.toServiceString()；
     public static ConcurrentHashMap<String, ConcurrentMap<Invoker, ProviderInvokerWrapper>> providerInvokers = new ConcurrentHashMap<>();
+    // 消费者Invoker集合，key 消费的URL计算的key，url.toServiceString()；
     public static ConcurrentHashMap<String, Set<ConsumerInvokerWrapper>> consumerInvokers = new ConcurrentHashMap<>();
 
+    /**
+     * 
+     * @param invoker
+     * @param registryUrl
+     * @param providerUrl
+     * @param <T>
+     * @return
+     */
     public static <T> ProviderInvokerWrapper<T> registerProvider(Invoker<T> invoker, URL registryUrl, URL providerUrl) {
         ProviderInvokerWrapper<T> wrapperInvoker = new ProviderInvokerWrapper<>(invoker, registryUrl, providerUrl);
         String serviceUniqueName = providerUrl.getServiceKey();
