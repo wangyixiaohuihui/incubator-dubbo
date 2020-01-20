@@ -39,27 +39,50 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 public abstract class AbstractServer extends AbstractEndpoint implements Server {
 
+    /**
+     * 服务器线程名称
+     */
     protected static final String SERVER_THREAD_POOL_NAME = "DubboServerHandler";
     private static final Logger logger = LoggerFactory.getLogger(AbstractServer.class);
+    /**
+     * 线程池
+     */
     ExecutorService executor;
+    /**
+     * 服务地址，也就是本地地址
+     */
     private InetSocketAddress localAddress;
+    /**
+     * 绑定地址
+     */
     private InetSocketAddress bindAddress;
+    /**
+     * 最大可接受的连接数
+     */
     private int accepts;
+    /**
+     * 空闲超时时间，单位是s
+     */
     private int idleTimeout;
 
     public AbstractServer(URL url, ChannelHandler handler) throws RemotingException {
         super(url, handler);
+        // 从url中获得本地地址
         localAddress = getUrl().toInetSocketAddress();
-
+        // 从url配置中获得绑定的ip
         String bindIp = getUrl().getParameter(Constants.BIND_IP_KEY, getUrl().getHost());
+        // 从url配置中获得绑定的端口号
         int bindPort = getUrl().getParameter(Constants.BIND_PORT_KEY, getUrl().getPort());
+        // 判断url中配置anyhost是否为true或者判断host是否为不可用的本地Host
         if (url.getParameter(Constants.ANYHOST_KEY, false) || NetUtils.isInvalidLocalHost(bindIp)) {
             bindIp = Constants.ANYHOST_VALUE;
         }
         bindAddress = new InetSocketAddress(bindIp, bindPort);
+        // 从url中获取配置，默认值为0
         this.accepts = url.getParameter(Constants.ACCEPTS_KEY, Constants.DEFAULT_ACCEPTS);
         this.idleTimeout = url.getParameter(Constants.IDLE_TIMEOUT_KEY, Constants.DEFAULT_IDLE_TIMEOUT);
         try {
+            // 开启服务器
             doOpen();
             if (logger.isInfoEnabled()) {
                 logger.info("Start " + getClass().getSimpleName() + " bind " + getBindAddress() + ", export " + getLocalAddress());
@@ -69,6 +92,7 @@ public abstract class AbstractServer extends AbstractEndpoint implements Server 
                     + " on " + getLocalAddress() + ", cause: " + t.getMessage(), t);
         }
         //fixme replace this with better method
+        // 获得线程池
         DataStore dataStore = ExtensionLoader.getExtensionLoader(DataStore.class).getDefaultExtension();
         executor = (ExecutorService) dataStore.get(Constants.EXECUTOR_SERVICE_COMPONENT_KEY, Integer.toString(url.getPort()));
     }
