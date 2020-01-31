@@ -36,6 +36,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public abstract class AbstractProxyProtocol extends AbstractProtocol {
 
+    /**
+     * rpc的异常类集合
+     */
     private final List<Class<?>> rpcExceptions = new CopyOnWriteArrayList<Class<?>>();
 
     private ProxyFactory proxyFactory;
@@ -64,7 +67,9 @@ public abstract class AbstractProxyProtocol extends AbstractProtocol {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Exporter<T> export(final Invoker<T> invoker) throws RpcException {
+        // 获得uri
         final String uri = serviceKey(invoker.getUrl());
+        // 获得服务暴露者
         Exporter<T> exporter = (Exporter<T>) exporterMap.get(uri);
         if (exporter != null) {
             // When modifying the configuration through override, you need to re-expose the newly modified service.
@@ -72,14 +77,19 @@ public abstract class AbstractProxyProtocol extends AbstractProtocol {
                 return exporter;
             }
         }
+        // 新建一个线程
         final Runnable runnable = doExport(proxyFactory.getProxy(invoker, true), invoker.getInterface(), invoker.getUrl());
         exporter = new AbstractExporter<T>(invoker) {
+            /**
+             * 取消暴露
+             */
             @Override
             public void unexport() {
                 super.unexport();
                 exporterMap.remove(uri);
                 if (runnable != null) {
                     try {
+                        // 启动线程
                         runnable.run();
                     } catch (Throwable t) {
                         logger.warn(t.getMessage(), t);
@@ -87,19 +97,23 @@ public abstract class AbstractProxyProtocol extends AbstractProtocol {
                 }
             }
         };
+        // 加入集合
         exporterMap.put(uri, exporter);
         return exporter;
     }
 
     @Override
     public <T> Invoker<T> refer(final Class<T> type, final URL url) throws RpcException {
+        // 通过代理获得实体域
         final Invoker<T> target = proxyFactory.getInvoker(doRefer(type, url), type, url);
         Invoker<T> invoker = new AbstractInvoker<T>(type, url) {
             @Override
             protected Result doInvoke(Invocation invocation) throws Throwable {
                 try {
+                    // 获得调用结果
                     Result result = target.invoke(invocation);
                     Throwable e = result.getException();
+                    // 如果抛出异常，则抛出相应异常
                     if (e != null) {
                         for (Class<?> rpcException : rpcExceptions) {
                             if (rpcException.isAssignableFrom(e.getClass())) {
@@ -118,6 +132,7 @@ public abstract class AbstractProxyProtocol extends AbstractProtocol {
                 }
             }
         };
+        // 加入集合
         invokers.add(invoker);
         return invoker;
     }

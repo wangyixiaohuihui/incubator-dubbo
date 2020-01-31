@@ -62,8 +62,11 @@ public class StubProxyFactoryWrapper implements ProxyFactory {
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> T getProxy(Invoker<T> invoker) throws RpcException {
+        // 获得代理类对象
         T proxy = proxyFactory.getProxy(invoker);
+        // 如果不是返回服务调用
         if (GenericService.class != invoker.getInterface()) {
+            // 获得stub的配置
             String stub = invoker.getUrl().getParameter(Constants.STUB_KEY, invoker.getUrl().getParameter(Constants.LOCAL_KEY));
             if (ConfigUtils.isNotEmpty(stub)) {
                 Class<?> serviceType = invoker.getInterface();
@@ -81,6 +84,7 @@ public class StubProxyFactoryWrapper implements ProxyFactory {
                     }
                     try {
                         Constructor<?> constructor = ReflectUtils.findConstructor(stubClass, serviceType);
+                        // 使用指定的初始化参数创建和初始化构造函数声明类的新实例
                         proxy = (T) constructor.newInstance(new Object[]{proxy});
                         //export stub service
                         URL url = invoker.getUrl();

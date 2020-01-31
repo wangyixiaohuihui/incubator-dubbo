@@ -19,5 +19,9 @@ package org.apache.dubbo.remoting.transport;
 import org.apache.dubbo.remoting.ChannelHandler;
 
 public interface ChannelHandlerDelegate extends ChannelHandler {
+    /**
+     * 获得通道
+     * @return 返回通道的Handler
+     */
     ChannelHandler getHandler();
 }
