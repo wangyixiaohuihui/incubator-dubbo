@@ -46,10 +46,13 @@ public class ProtocolFilterWrapper implements Protocol {
 
     private static <T> Invoker<T> buildInvokerChain(final Invoker<T> invoker, String key, String group) {
         Invoker<T> last = invoker;
+        // 获得过滤器的所有扩展实现类实例集合
         List<Filter> filters = ExtensionLoader.getExtensionLoader(Filter.class).getActivateExtension(invoker.getUrl(), key, group);
         if (!filters.isEmpty()) {
+            // 从最后一个过滤器开始循环，创建一个带有过滤器链的invoker对象
             for (int i = filters.size() - 1; i >= 0; i--) {
                 final Filter filter = filters.get(i);
+                // 记录last的invoker
                 final Invoker<T> next = last;
                 last = new Invoker<T>() {
 
@@ -68,6 +71,13 @@ public class ProtocolFilterWrapper implements Protocol {
                         return invoker.isAvailable();
                     }
 
+
+                    /**
+                     * 关键在这里，调用下一个filter代表的invoker，把每一个过滤器串起来
+                     * @param invocation invocation
+                     * @return
+                     * @throws RpcException
+                     */
                     @Override
                     public Result invoke(Invocation invocation) throws RpcException {
                         Result result = filter.invoke(next, invocation);
@@ -105,6 +115,7 @@ public class ProtocolFilterWrapper implements Protocol {
         if (Constants.REGISTRY_PROTOCOL.equals(invoker.getUrl().getProtocol())) {
             return protocol.export(invoker);
         }
+        // 消费者侧引用服务
         return protocol.export(buildInvokerChain(invoker, Constants.SERVICE_FILTER_KEY, Constants.PROVIDER));
     }
 

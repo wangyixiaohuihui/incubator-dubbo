@@ -210,13 +210,16 @@ public class ExchangeCodec extends TelnetCodec {
     protected void encodeRequest(Channel channel, ChannelBuffer buffer, Request req) throws IOException {
         Serialization serialization = getSerialization(channel);
         // header.
+        // 创建16字节的字节数组
         byte[] header = new byte[HEADER_LENGTH];
         // set magic number.
+        // 设置前16位数据，也就是设置header[0]和header[1]的数据为Magic High和Magic Low
         Bytes.short2bytes(MAGIC, header);
 
         // set request and serialization flag.
         header[2] = (byte) (FLAG_REQUEST | serialization.getContentTypeId());
 
+        // 继续上面的例子，00011111|1000000 = 01011111
         if (req.isTwoWay()) {
             header[2] |= FLAG_TWOWAY;
         }
@@ -248,6 +251,7 @@ public class ExchangeCodec extends TelnetCodec {
         Bytes.int2bytes(len, header, 12);
 
         // write
+        // 把header写入到buffer
         buffer.writerIndex(savedWriteIndex);
         buffer.writeBytes(header); // write header.
         buffer.writerIndex(savedWriteIndex + HEADER_LENGTH + len);

@@ -51,7 +51,9 @@ public class CompatibleFilter implements Filter {
 
     @Override
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
+        // 调用下一个调用链
         Result result = invoker.invoke(invocation);
+        // 如果方法前面没有$或者结果没有异常
         if (!invocation.getMethodName().startsWith("$") && !result.hasException()) {
             Object value = result.getValue();
             if (value != null) {

@@ -39,6 +39,7 @@ public class ConsumerContextFilter implements Filter {
 
     @Override
     public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
+        // 设置rpc上下文
         RpcContext.getContext()
                 .setInvoker(invoker)
                 .setInvocation(invocation)
@@ -51,6 +52,7 @@ public class ConsumerContextFilter implements Filter {
         try {
             // TODO should we clear server context?
             RpcContext.removeServerContext();
+            // 调用下一个调用链
             return invoker.invoke(invocation);
         } finally {
             // TODO removeContext? but we need to save future for RpcContext.getFuture() API. If clear attachments here, attachments will not available when postProcessResult is invoked.

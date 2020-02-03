@@ -44,6 +44,7 @@ public class InvokerInvocationHandler implements InvocationHandler {
         if (method.getDeclaringClass() == Object.class) {
             return method.invoke(invoker, args);
         }
+        // 基础方法，不使用 RPC 调用
         if ("toString".equals(methodName) && parameterTypes.length == 0) {
             return invoker.toString();
         }

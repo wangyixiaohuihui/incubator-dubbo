@@ -37,13 +37,23 @@ import static org.apache.dubbo.common.utils.UrlUtils.getHeartbeat;
 import static org.apache.dubbo.common.utils.UrlUtils.getIdleTimeout;
 
 /**
- * DefaultMessageClient
+ * DefaultMessageClient 基于协议头的信息交互客户端类
  */
 public class HeaderExchangeClient implements ExchangeClient {
-
+    /**
+     * 客户端
+     */
     private final Client client;
+
+    /**
+     * 信息交换通道
+     */
     private final ExchangeChannel channel;
 
+
+    /**
+     * 定时器线程池
+     */
     private static final HashedWheelTimer IDLE_CHECK_TIMER = new HashedWheelTimer(
             new NamedThreadFactory("dubbo-client-idleCheck", true), 1, TimeUnit.SECONDS, Constants.TICKS_PER_WHEEL);
     private HeartbeatTimerTask heartBeatTimerTask;
@@ -52,6 +62,7 @@ public class HeaderExchangeClient implements ExchangeClient {
     public HeaderExchangeClient(Client client, boolean startTimer) {
         Assert.notNull(client, "Client can't be null");
         this.client = client;
+        // 创建信息交换通道
         this.channel = new HeaderExchangeChannel(client);
 
         if (startTimer) {

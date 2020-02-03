@@ -52,7 +52,7 @@ public class InvokerWrapper<T> implements Invoker<T> {
     }
 
     @Override
-    public Result invoke(Invocation invocation) throws RpcException {
+        public Result invoke(Invocation invocation) throws RpcException {
         return invoker.invoke(invocation);
     }
 

@@ -107,11 +107,16 @@ public class AccessLogFilter implements Filter {
     @Override
     public Result invoke(Invoker<?> invoker, Invocation inv) throws RpcException {
         try {
+            // 获得日志名称
             String accesslog = invoker.getUrl().getParameter(Constants.ACCESS_LOG_KEY);
             if (ConfigUtils.isNotEmpty(accesslog)) {
+                // 获得rpc上下文
                 RpcContext context = RpcContext.getContext();
+                // 获得调用的接口名称
                 String serviceName = invoker.getInterface().getName();
+                // 获得版本号
                 String version = invoker.getUrl().getParameter(Constants.VERSION_KEY);
+                // 获得组，是消费者侧还是生产者侧
                 String group = invoker.getUrl().getParameter(Constants.GROUP_KEY);
                 StringBuilder sn = new StringBuilder();
                 sn.append("[").append(new SimpleDateFormat(MESSAGE_DATE_FORMAT).format(new Date())).append("] ").append(context.getRemoteHost()).append(":").append(context.getRemotePort())
