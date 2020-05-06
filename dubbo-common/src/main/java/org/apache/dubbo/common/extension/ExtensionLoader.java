@@ -147,7 +147,7 @@ public class ExtensionLoader<T> {
                     ") is not extension, because WITHOUT @" + SPI.class.getSimpleName() + " Annotation!");
         }
 
-        //从扩展加载器集合中取出扩展接口对应的扩展加载器
+        //从扩展加载器集合中取出扩展接口对应的扩展加载器 type是实现类
         ExtensionLoader<T> loader = (ExtensionLoader<T>) EXTENSION_LOADERS.get(type);
 
         //如果为空，则创建该扩展接口的扩展加载器，并且添加到EXTENSION_LOADERS
@@ -384,11 +384,13 @@ public class ExtensionLoader<T> {
         if (StringUtils.isEmpty(name)) {
             throw new IllegalArgumentException("Extension name == null");
         }
+        // DefaultExtension 就是自适应的扩展类
         if ("true".equals(name)) {
             return getDefaultExtension();
         }
         Holder<Object> holder = cachedInstances.get(name);
         if (holder == null) {
+            //  如果缓存中没有，则创建一个加进去，此时没有实际内容
             cachedInstances.putIfAbsent(name, new Holder<Object>());
             holder = cachedInstances.get(name);
         }
@@ -596,6 +598,7 @@ public class ExtensionLoader<T> {
             Set<Class<?>> wrapperClasses = cachedWrapperClasses;
             if (CollectionUtils.isNotEmpty(wrapperClasses)) {
                 for (Class<?> wrapperClass : wrapperClasses) {
+                    //循环遍历所有wrapper实现，实例化wrapper并进行扩展点注入
                     instance = injectExtension((T) wrapperClass.getConstructor(type).newInstance(instance));
                 }
             }
@@ -610,6 +613,7 @@ public class ExtensionLoader<T> {
      * 向创建的拓展注入其依赖的属性
      * @param instance
      * @return
+     * 通过反射自动调用instance的set 方法把自身的属性注入进去，解决扩展类的依赖扩展类的问题
      */
     private T injectExtension(T instance) {
         try {
@@ -630,8 +634,11 @@ public class ExtensionLoader<T> {
                         }
                         try {
                             String property = method.getName().length() > 3 ? method.getName().substring(3, 4).toLowerCase() + method.getName().substring(4) : "";
+                            // 获得属性值
                             Object object = objectFactory.getExtension(pt, property);
                             if (object != null) {
+                                // 如果不为空，则set方法的参数是扩展点类型，
+                                // 那么进行注入，意思也就是说扩展点里面还有依赖其他扩展点
                                 method.invoke(instance, object);
                             }
                         } catch (Exception e) {
@@ -663,7 +670,7 @@ public class ExtensionLoader<T> {
     }
 
     /**
-     * 获得扩展实现类数组
+     * 获得扩展实现类数组 记载当前扩展类的所有实现，看是否实现类上有Adaptive注解
      * @return
      */
     private Map<String, Class<?>> getExtensionClasses() {
@@ -672,6 +679,8 @@ public class ExtensionLoader<T> {
             synchronized (cachedClasses) {
                 classes = cachedClasses.get();
                 if (classes == null) {
+                    // loadExtensionClasses 会加载所有的配置文件，将配置文件对应的类加载到当前的缓存中
+                    // load完之后 该classes已经保留了所有的扩展类映射关系
                     classes = loadExtensionClasses();
                     cachedClasses.set(classes);
                 }
@@ -728,6 +737,7 @@ public class ExtensionLoader<T> {
         String fileName = dir + type;
         try {
             Enumeration<java.net.URL> urls;
+            // 加载当前类的classloader
             ClassLoader classLoader = findClassLoader();
             if (classLoader != null) {
                 urls = classLoader.getResources(fileName);
@@ -774,7 +784,9 @@ public class ExtensionLoader<T> {
                              */
                             int i = line.indexOf('=');
                             if (i > 0) {
+                                // SPI 扩展文件中的key
                                 name = line.substring(0, i).trim();
+                                // SPI 扩展文件中的配置的value， ExtensionLoader 是根据key和value同时加载的
                                 line = line.substring(i + 1).trim();
                             }
                             /**
@@ -922,21 +934,24 @@ public class ExtensionLoader<T> {
     @SuppressWarnings("unchecked")
     private T createAdaptiveExtension() {
         try {
+            // 获取adaptive ExtensionClass 并完成注入
+            // 1 获取适配器 2 在适配器里面注入其他的扩展点
             return injectExtension((T) getAdaptiveExtensionClass().newInstance());
         } catch (Exception e) {
             throw new IllegalStateException("Can't create adaptive extension " + type + ", cause: " + e.getMessage(), e);
         }
     }
 
+    // 获取适配类： 1 实现类上@Aadptive 注解；  2 实现类上没有注解，dubbo会自动生成一个某个接口的适配类
     private Class<?> getAdaptiveExtensionClass() {
         /**
-         * 触发SPI流程的扫描
+         * 触发SPI流程的扫描 找出被@Adaptive 注解实现类
          */
         getExtensionClasses();
         if (cachedAdaptiveClass != null) {
             return cachedAdaptiveClass;
         }
-        // 利用动态代理创建一个扩展类
+        // 找不到就利用动态代理创建一个扩展类
         return cachedAdaptiveClass = createAdaptiveExtensionClass();
     }
 
