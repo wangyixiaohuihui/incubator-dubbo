@@ -54,29 +54,38 @@ public class FailoverClusterInvoker<T> extends AbstractClusterInvoker<T> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public Result doInvoke(Invocation invocation, final List<Invoker<T>> invokers, LoadBalance loadbalance) throws RpcException {
         List<Invoker<T>> copyInvokers = invokers;
+        // 检查copyInvoker 是否为空
         checkInvokers(copyInvokers, invocation);
         String methodName = RpcUtils.getMethodName(invocation);
+        // 最大调用次数len 重试次数+1
         int len = getUrl().getMethodParameter(methodName, Constants.RETRIES_KEY, Constants.DEFAULT_RETRIES) + 1;
         if (len <= 0) {
             len = 1;
         }
-        // retry loop.
+        // retry loop. 记录最后一次异常
         RpcException le = null; // last exception.
+        // 已经调用过的invoker 集合
         List<Invoker<T>> invoked = new ArrayList<Invoker<T>>(copyInvokers.size()); // invoked invokers.
         Set<String> providers = new HashSet<String>(len);
+        // 调用循环len次数，失败重试
         for (int i = 0; i < len; i++) {
             //Reselect before retry to avoid a change of candidate `invokers`.
             //NOTE: if `invokers` changed, then `invoked` also lose accuracy.
             if (i > 0) {
                 checkWhetherDestroyed();
+                // 进行重试前重新获取invoker集合，保证copyInvoker是最新的可用的invoker列表
                 copyInvokers = list(invocation);
                 // check again
                 checkInvokers(copyInvokers, invocation);
             }
+            // 负载均衡策略选取一个invoker
             Invoker<T> invoker = select(loadbalance, invocation, copyInvokers, invoked);
+            // 维护已经调用过的 invoker列表
             invoked.add(invoker);
+            // 把invoker 放到rpc的上下文
             RpcContext.getContext().setInvokers((List) invoked);
             try {
+                // 调用invoker的invoke方法，返回结果
                 Result result = invoker.invoke(invocation);
                 if (le != null && logger.isWarnEnabled()) {
                     logger.warn("Although retry the method " + methodName
